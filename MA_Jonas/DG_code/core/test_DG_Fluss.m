@@ -1,10 +1,17 @@
+clc, clearvars
 %% Matrizen und Parameter
 N = 1; % Polynomgrad des DG-Ansatzes, N+1 Knoten
 K = 12; % Unterteilung der X-Richtung in 12 DG-Elemente
 N_xi = 15; % Unterteilung der xi-Richtung in 15 FV-Zellen, ungerade für 
            % Mittelwert bei 0
+K_werte = [12, 24, 48, 96]; % Für Gitterkonvergenz
+N_xi_werte = [15, 31, 61, 121];
+n_Fehler = zeros(size(K_werte));
+j_Fehler = zeros(size(K_werte));
+N_Fehler = zeros(size(K_werte));
+herm_Fehler = zeros(size(K_werte));
 L_X = 4e-6; % Teststrecke von 4 µm
-d_X = L_x/K; % Breite eines DG-Elements
+d_X = L_X/K; % Breite eines DG-Elements
 d_xi = 2*L_X/N_xi; % da xi=x_1-x_2 und x_1,x_2 element [0,L] sind, ist xi 
                    % element [-L,L]. Mit der Anzahl an Zellen ergibt sich 
                    % 2L/N
@@ -13,9 +20,11 @@ V = Vandermonde1D(N,r); % Vandermondematrix
 D = Dmatrix1D(N,r,V); % Ableitungsmatrix
 M = inv(V*V'); % Massematrix
 S = M*D; % Steifigkeitsmatrix
-M_k = (dX/2)*M; % Massematrix mit physikalischer Elementbreite (Für 
+M_k = (d_X/2)*M; % Massematrix mit physikalischer Elementbreite (Für 
                 % Steifigkeitsmatrix kürzt sich alles und es kann 
                 % gewöhnlich S verwendet werden.)
+t_End = 0.4e-12; % Festlegung der Endzeit (0.4ps für 0.4µm), für RK4 später
+
 
 % Berechnung der X-Knoten im jeweiligen DG-Element und der xi-Zellenmittelpunkte
 X = zeros(2,K);
@@ -53,7 +62,7 @@ A_xi_minus = EV_xi*diag(min(lambda_xi,0))*EV_xi';
 % Dazu als Wellenfunktion ein Gaußpaket (oder ebene Welle)
 x0 = 1.2e-6; % Position des Paketzentrums [m]
 sigma = 0.4e-6; % Paketbreite [m]
-g = @(x) exp(-0.5*(mod(x-x0+Lx/2,Lx)-Lx/2).^2/sigma^2); % Wellenpaket mit 
+g = @(x) exp(-0.5*(mod(x-x0+L_X/2,L_X)-L_X/2).^2/sigma^2); % Wellenpaket mit 
                 % mod zur Berücksichtigung periodischer Randbedingungen. 
 chi_0 = [1;0];
 rho_anf = chi_0*chi_0';
@@ -69,11 +78,10 @@ for k = 1:K
         end
     end
 end
-u_anfang = U; % für Vektorgestalt
+U_anfang = U; % für Vektorgestalt
 
 
 %% Zeitentwicklung: explizites Runge-Kutta-Verfahren 4. Ordnung
-t_End = 0.4e-12; % Festlegung der Endzeit (0.4ps für 0.4µm)
 dt_max = 0.05*min(d_X/vF,d_xi/(2*vF)); % CFL Bedingung maximal möglicher 
             % Zeitschritt, c=0.05 (Testwert). Minimum beider Werte, damit 
             % keine Zelle ggf. übersprungen wird.
@@ -81,7 +89,7 @@ n_steps = ceil(t_End/dt_max); % Anzahl der Zeitschritte insgesamt
 dt = t_End/n_steps; % Schrittweite (h_k im Skript)
 % Definition des zu lösenden Problems und Lösungsschleife
 rechts = @(W) DG_FV_rechts(W,S,M_k,d_xi, A_X,A_X_plus,A_X_minus,A_xi_plus,A_xi_minus);
-for it = 1:nSteps
+for it = 1:n_steps
     k1 = rechts(U);
     k2 = rechts(U + 0.5*dt*k1);
     k3 = rechts(U + 0.5*dt*k2);
@@ -93,16 +101,16 @@ end
 %% Überprüfung: Teilchendichte, globale Teilchenzahlerhaltung, Hermitizität
 % und Vergleich mit der analytischen Lösung
 % 1) Teilchendichte
-j0 = (Nxi+1)/2; % Index der FV-Zelle, dessen Mittelpunkt bei xi=0 liegt
+j0 = (N_xi+1)/2; % Index der FV-Zelle, dessen Mittelpunkt bei xi=0 liegt
 n_anfang = squeeze(U_anfang(1,:,:,j0) + U_anfang(4,:,:,j0)); % n zu t=0
 n_ende = squeeze(U(1,:,:,j0) + U(4,:,:,j0)); % n im Endzustand
 % 2) Globale Teilchenzahlerhaltung
-N_anfang = (dX/2)*sum(n_anfang(:)); % Trapezregel zur Auswertung des Integrals
-N_ende = (dX/2)*sum(n_ende(:));
+N_anfang = (d_X/2)*sum(n_anfang(:)); % Trapezregel zur Auswertung des Integrals
+N_ende = (d_X/2)*sum(n_ende(:));
 N_relFehler = abs(N_ende-N_anfang)/N_anfang;
 % 3) Hermitizitaet: rho(X,xi) = rho(X,-xi)^dagger
 hermFehler = 0;
-for j = 1:Nxi
+for j = 1:N_xi
     for k = 1:K
         for n = 1:2
             % 2x2 Matrixdarstellung mit reshape
@@ -117,17 +125,36 @@ end
 % 4) Analytischer Vergleich
 % Für die Teilchendichte
 n_ana = 0.5*(g(X-vF*t_End).^2 + g(X+vF*t_End).^2);
-n_relFehler = norm(n_Ende(:)-n_exakt(:))/norm(x_exakt(:));
+n_relFehler = norm(n_ende(:)-n_ana(:))/norm(n_ana(:));
 % Für den Strom
 j = squeeze(vF*(U(2,:,:,j0)+U(3,:,:,j0)));
-j_ana = 0.5*vF*(g(X-vF*T).^2 - g(X+vF*T).^2);
+j_ana = 0.5*vF*(g(X-vF*t_End).^2 - g(X+vF*t_End).^2);
 j_relFehler = norm(j(:)-j_ana(:))/norm(j_ana(:));
 
+%% Ausgabe
 fprintf('Relativer Teilchenzahlfehler:  %.3e\n',N_relFehler);
 fprintf('Max. Hermitizitätsfehler:      %.3e\n',hermFehler);
 fprintf('Rel. Dichtefehler gg. exakt:   %.3e\n',n_relFehler);
 fprintf('Rel. Stromfehler gg. exakt:    %.3e\n',j_relFehler);
-
+% Teilchendichte
+figure;
+plot(X(:)*1e6, n_anfang(:), 'y--', 'DisplayName','Anfangsdichte zu t=0'); hold on;
+plot(X(:)*1e6, n_ende(:), 'b.-', 'DisplayName','DG+FV');
+plot(X(:)*1e6, n_ana(:), 'r-', 'DisplayName','Analytisch');
+xlabel('X [\mum]'); 
+ylabel('n(X,\xi=0)');
+legend('Location','best');
+grid on;
+title('Freier Dirac-Transport (beide Richtungen): Teilchendichte');
+% Strom
+figure;
+plot(X(:)*1e6, real(j(:)), 'b.-', 'DisplayName','DG+FV'); hold on;
+plot(X(:)*1e6, j_ana(:), 'r-', 'DisplayName','Analytisch');
+xlabel('X [\mum]');
+ylabel('j(X,t)');
+legend('Location','best');
+grid on;
+title('Verlauf der Stromdichte');
 
 %% Lokale Funktion: rechte Seite fuer alle DG-Elemente und FV-Zellen
 function dUdt = DG_FV_rechts(U, S, M_k, d_xi, A_X, A_X_plus, A_X_minus, ...
@@ -141,53 +168,27 @@ function dUdt = DG_FV_rechts(U, S, M_k, d_xi, A_X, A_X_plus, A_X_minus, ...
         k_rechts = mod(k,K)+1; % periodischer rechter Nachbar
         % Schleife über FV-Zellen
         for j = 1:N_xi
-            j_links = mod(j-2,N_xi)+1;
-            j_rechts = mod(j,N_xi)+1;
+            j_links = mod(j-2,N_xi)+1; % periodischer linker Nachbar
+            j_rechts = mod(j,N_xi)+1; % periodischer rechter Nachbar
             
-            U_mitte = U(:,:,k,j);  % 4x2-Matrix
+            U_mitte = U(:,:,k,j);  % 4x2-Matrix, die die Dichtematrixwerte 
+                                   % eines DG-Elements zu eier FV-Zelle
+                                   % enthält
 
             % DG-Randfluesse in X
-            F_links = A_X_plus*U(:,2,k_links,j) ...
-                    + A_X_minus*U_mitte(:,1);
-            F_rechts = A_X_plus*U_mitte(:,2) ...
-                     + A_X_minus*U(:,1,k_rechts,j);
+            F_links = A_X_plus*U(:,2,k_links,j) + A_X_minus*U_mitte(:,1);
+            F_rechts = A_X_plus*U_mitte(:,2) + A_X_minus*U(:,1,k_rechts,j);
 
-            % Schwache DG-Formulierung wie in der Bachelorarbeit
+            % Schwache DG-Formulierung
             F = A_X*U_mitte;
-            DG = (F*S - F_rechts*[0 1] + F_links*[1 0])/M_k;
+            linke_Seite = (F*S - F_rechts*[0 1] + F_links*[1 0])/M_k;
 
             % FV-Flussdifferenz in xi
             G = (A_xi_plus*(U_mitte-U(:,:,k,j_links)) ...
                + A_xi_minus*(U(:,:,k,j_rechts)-U_mitte))/d_xi;
 
             % Zeitliche Ableitung: dU/dt = DG - G
-            dUdt(:,:,k,j) = DG-G;
+            dUdt(:,:,k,j) = linke_Seite-G;
         end
     end
 end
-
-
-% % FV-Term G_j
-% G = (A_xi_plus*(U_mitte-U_xi_links) + A_xi_minus*(U_xi_rechts-U_mitte))/d_xi;
-% 
-% % Numerische Flüsse an den Elementgrenzen
-% F_links = A_X_plus*U_links(:,2) + A_X_minus*U_mitte(:,1);
-% F_rechts = A_X_plus*U_mitte(:,2) + A_X_minus*U_rechts(:,1);
-% 
-% % Fluss an den Knoten des mittleren Elements f(U) = A_x*u
-% F = A_X*U_mitte;
-% 
-% % DG-Gleichung: Mk*du/dt = S^T*f - Randflüsse
-% linke_Seite = F*S - F_rechts*[0 1] + F_links*[1 0];
-% 
-% % Zeitliche Ableitung durch Bildung der Inverse
-% dUdt = linke_Seite/M_k - G;
-% 
-% disp('DG-Beitrag:')
-% disp(linke_Seite/M_k)
-% 
-% disp('FV-Beitrag:')
-% disp(-G)
-% 
-% disp('Gesamte zeitliche Ableitung:')
-% disp(dUdt)
