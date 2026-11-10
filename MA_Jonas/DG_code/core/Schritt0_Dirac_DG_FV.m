@@ -1,4 +1,4 @@
-%% Schritt 0: freier 1D-Dirac-Transport einer 2x2-Dichtematrix
+% Schritt 0: freier 1D-Dirac-Transport einer 2x2-Dichtematrix
 % DG in X, FV in xi, periodische Testgeometrie.
 % Voraussetzung: JacobiGL.m, Vandermonde1D.m und Dmatrix1D.m im MATLAB-Pfad.
 clear; clc;
