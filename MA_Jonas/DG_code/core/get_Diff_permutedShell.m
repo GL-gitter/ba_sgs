@@ -1,0 +1,73 @@
+function [A,rhs] = get_Diff_permutedShell(p)
+
+fnl = p.verteilung_l;
+fnr = p.verteilung_r;
+
+Dr = p.M*Dmatrix1D(p.N_K_chi-1, p.r, p.V);
+detJx = ones(p.N_chi,1)*p.delta_chi/2;
+p.M = p.delta_xi/2*p.M;
+%p.M = p.delta_k/2*p.M;
+p.invM = inv(p.M);
+Dr_index = find(abs(Dr)<1e-15);
+Dr(Dr_index) = 0;
+P1 = zeros(p.N_K_chi);
+P1(1,1)= 1;
+P2= zeros(p.N_K_chi);
+P2(1,p.N_K_chi)= 1;
+P3= zeros(p.N_K_chi);
+P3(p.N_K_chi,p.N_K_chi)= 1;
+P4= zeros(p.N_K_chi);
+P4(p.N_K_chi,1)= 1;
+
+K1= p.invM*(Dr+0.5*P1-0.5*P3);   %%% K1 multiply by 0 for flux extraction
+K2= p.invM*(0.5*P1+0.5*P3);
+K3= -0.5*p.invM*P2;
+K4= K3;
+K5= 0.5*p.invM*P4;
+K6= -K5;
+
+%XX = diag(max(max(abs(p.D)))*ones(p.Nk,1));     %%%%just try this!
+
+if p.permute_shell == false
+
+    H1= kron(spdiags(1./detJx,1,p.N_chi,p.N_chi),K5)+kron(spdiags(1./detJx(2:end),-1,p.N_chi,p.N_chi),K3)...
+        +kron(spdiags(1./detJx,0,p.N_chi,p.N_chi),K1);
+    H2= kron(spdiags(1./detJx,1,p.N_chi,p.N_chi),K6)+kron(spdiags(1./detJx(2:end),-1,p.N_chi,p.N_chi),K4)...
+        +kron(spdiags(1./detJx,0,p.N_chi,p.N_chi),K2);
+    A = p.Q_diff*(kron(p.D,H1)+kron(abs(p.D),H2));
+    
+    %% Randbedingungen aufstellen
+    
+    Q1 = zeros(p.N_K_chi*p.N_chi,1);
+    Q1(1:p.N_K_chi) = p.invM(:,1)/detJx(1);
+    Q2 = zeros(p.N_K_chi*p.N_chi,1);
+    Q2(p.N_K_chi*(p.N_chi-1)+1:p.N_K_chi*p.N_chi)= p.invM(:,p.N_K_chi)/detJx(end);
+    rhs = kron((diag(p.D) > 0).*(abs(p.D)*fnl),Q1)...   %abs(p.D)*
+        +kron((diag(p.D) < 0).*(abs(p.D)*fnr),Q2);      %abs(p.D)*
+    rhs = p.Q_diff*rhs;
+
+elseif p.permute_shell == true
+    H1= kron(spdiags(1./detJx,1,p.N_chi,p.N_chi),K5)+kron(spdiags(1./detJx(2:end),-1,p.N_chi,p.N_chi),K3)...
+        +kron(spdiags(1./detJx,0,p.N_chi,p.N_chi),K1);
+    H2= kron(spdiags(1./detJx,1,p.N_chi,p.N_chi),K6)+kron(spdiags(1./detJx(2:end),-1,p.N_chi,p.N_chi),K4)...
+        +kron(spdiags(1./detJx,0,p.N_chi,p.N_chi),K2);
+    A = p.Q_diff*(kron(H1,p.D)+kron(H2,abs(p.D)));
+    
+    %% Randbedingungen aufstellen
+    
+    Q1 = zeros(p.N_K_chi*p.N_chi,1);
+    Q1(1:p.N_K_chi) = p.invM(:,1)/detJx(1);
+    Q2 = zeros(p.N_K_chi*p.N_chi,1);
+    Q2(p.N_K_chi*(p.N_chi-1)+1:p.N_K_chi*p.N_chi)= p.invM(:,p.N_K_chi)/detJx(end);
+    rhs = kron(Q1,(diag(p.D) > 0).*(abs(p.D)*fnl))...   %abs(p.D)*
+        +kron(Q2,(diag(p.D) < 0).*(abs(p.D)*fnr));      %abs(p.D)*
+    rhs = p.Q_diff*rhs;
+
+
+end
+end
+
+
+
+
+%diag(max(max(abs(p.D)))*ones(p.Nk,1));

@@ -1,0 +1,10 @@
+# MATLAB-Sicherungsdateien
+*.asv
+
+# Generierte MATLAB-Dateien
+*.slxc
+slprj/
+codegen/
+
+# Temporäre Dateien
+*.m~

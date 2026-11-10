@@ -1,0 +1,13 @@
+# MATLAB autosaves
+*.asv
+*.m~
+
+# Compiled MEX files
+*.mex*
+
+# Simulink generated files
+slprj/
+*.slxc
+
+# MATLAB temporary/session files
+*.autosave

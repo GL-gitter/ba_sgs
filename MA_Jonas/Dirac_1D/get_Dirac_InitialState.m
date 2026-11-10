@@ -1,0 +1,1 @@
+% Funktion zum Erzeugen 

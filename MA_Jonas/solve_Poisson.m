@@ -1,0 +1,79 @@
+function [Vbi, iter_err] = solve_Poisson(M, node_type, node_num, n, mat, Vbi, Vg_bias)
+
+eps0 = 8.854E-12;
+q   = 1.602E-19;
+kB  = 1.38E-23;
+T   = mat.Temp;
+N = mat.Nd*1E+6;
+alpha = mat.poisson.opt.alpha;
+
+Vbi_old = Vbi;
+
+Nx = mat.Nx;
+Ny = mat.Ny;
+
+node_cnt = 0;
+
+free_node = node_num(node_type==1);
+bnd_node = node_num(node_type==2);
+
+
+for IX = 1 : Nx
+    
+    for IY = 1 : Ny
+        
+        node_cnt = node_cnt+1;
+        
+        n_p(node_cnt,1) = n(IX, IY);
+        g(node_cnt,1)   = Vg_bias*mat.boundary(IX, IY);
+        N_p(node_cnt,1) = N(IX, IY);
+        
+        Vbi_old_p(node_cnt,1) = Vbi_old(IX, IY);
+        
+    end
+    
+end
+
+
+
+switch mat.poisson.opt.solve
+    
+    case 'direct'
+        Vbi_new = zeros(node_cnt,1);
+        Vbi_new(bnd_node) = g(bnd_node);
+        RHS = -q*(N_p-n_p)+M*Vbi_new;
+        
+        Vbi_new(free_node) = -M(free_node,free_node)\RHS(free_node);
+        Vbi_new = Vbi_old_p + alpha*(Vbi_new-Vbi_old_p);
+        iter_err = norm(Vbi_new-Vbi_old_p, 2);
+        node_cnt = 0;
+        
+        for IX = 1 : Nx
+            for IY = 1 : Ny
+                node_cnt = node_cnt+1;
+                Vbi(IX,IY) = +Vbi_new(node_cnt);
+            end
+        end
+        
+    case 'newton-rhapson'
+        
+        Vbi_new = zeros(node_cnt,1);
+        Vbi_old_p(bnd_node) = g(bnd_node);
+        Vbi_new(bnd_node) = g(bnd_node);
+        
+        
+        dVbi = zeros(node_cnt,1);
+        
+        F     = M*Vbi_old_p - q*(N_p-n_p);
+        J     = (M-q^2*diag(n_p./(kB*T)));
+        dVbi(free_node)  = (-J(free_node,free_node)\F(free_node)); % first minus due to -q*PHI = V
+        Vbi_new(free_node) = Vbi_old_p(free_node)+alpha*dVbi(free_node);
+        iter_err = norm(dVbi, 2);%/node_cnt;
+        node_cnt = 0;
+        for IX = 1 : Nx
+            for IY = 1 : Ny
+                node_cnt = node_cnt+1;
+                Vbi(IX,IY) = Vbi_new(node_cnt);
+            end
+        end
+end
