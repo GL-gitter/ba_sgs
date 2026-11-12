@@ -10,9 +10,15 @@ N_Fehler = zeros(size(K_werte));
 herm_Fehler = zeros(size(K_werte));
 
 hbar = 1.054571817e-34; % [Js]
-e = 1.602176634e-19;
-D_F = 1e-3*e/1e-6; % Potentialanstieg [J/m]
-U_pot = @(x) D_F*x;
+e = 1.602176634e-19; % [C]
+U0 = 2e-3*e; % Barrierenhöhe: 2 meV [J]
+x_B = 2.2e-6; % Barrierenposition [m]
+w_B = 0.25e-6; % Barrierenbreite [m]
+
+U_pot = @(x) U0*exp(-0.5*((x-x_B)/w_B).^2);
+
+% D_F = 1e-3*e/1e-6; % Potentialanstieg [J/m]
+% U_pot = @(x) D_F*x;
 
 % Schleife für Gitterkonvergenz
 for q = 1:length(K_werte)
@@ -66,6 +72,18 @@ for q = 1:length(K_werte)
     A_xi_minus = EV_xi*diag(min(lambda_xi,0))*EV_xi';
     
     
+    %% Implementation des von S_pot
+    S_pot = zeros(2,K,N_xi);
+    for k = 1:K
+        for j = 1:N_xi
+            x_1 = X(:,k)+xi(j)/2;
+            x_2 = X(:,k)-xi(j)/2;
+
+            S_pot(:,k,j) = (U_pot(x_1) - U_pot(x_2))/(1i*hbar);
+        end
+    end
+
+
     %% Verifikation des freien Transports eines e-Wellenpakets in Graphen.
     % Dazu als Wellenfunktion ein Gaußpaket (oder ebene Welle)
     x0 = 1.2e-6; % Position des Paketzentrums [m]
@@ -118,7 +136,7 @@ for q = 1:length(K_werte)
     dt = t_End/n_steps; % Schrittweite (h_k im Skript)
     % Definition des zu lösenden Problems und Lösungsschleife
     rechts = @(W) DG_FV_rechts(W, S, M_k, d_xi, A_X, A_X_plus, A_X_minus, ...
-        A_xi_plus, A_xi_minus, D_F, hbar, xi);
+        A_xi_plus, A_xi_minus, S_pot);
     for it = 1:n_steps
         k1 = rechts(U);
         k2 = rechts(U + 0.5*dt*k1);
@@ -128,32 +146,32 @@ for q = 1:length(K_werte)
     end
 
 
-    %% Vergleich mit analytischer Dichtematrix
-    rho_Fehler_summe = 0;
-    rho_Norm_summe = 0;
-    for k = 1:K
-        for j = 1:N_xi
-            for n = 1:2
-                x1 = X(n,k) + xi(j)/2;
-                x2 = X(n,k) - xi(j)/2;
-                % Analytische freie Dichtematrix
-                rho_frei = g(x1-vF*t_End)*g(x2-vF*t_End)*rho_anf;
-                % Phasenfaktor des linearen Potentials
-                phase = exp(-1i*D_F*xi(j)*t_End/hbar);
-                % Analytische Lösung mit Potential
-                rho_ana = phase*rho_frei;
-                % Numerische Lösung
-                rho_num = reshape(U(:,n,k,j),2,2);
-                % Fehler aufsummieren
-                rho_Fehler_summe = rho_Fehler_summe ...
-                    + norm(rho_num-rho_ana,'fro')^2;
-                rho_Norm_summe = rho_Norm_summe ...
-                    + norm(rho_ana,'fro')^2;
-            end
-        end
-    end
-    rho_relFehler = sqrt(rho_Fehler_summe/rho_Norm_summe);
-    fprintf('Relativer Dichtematrixfehler: %.3e\n',rho_relFehler);
+    % %% Vergleich mit analytischer Dichtematrix
+    % rho_Fehler_summe = 0;
+    % rho_Norm_summe = 0;
+    % for k = 1:K
+    %     for j = 1:N_xi
+    %         for n = 1:2
+    %             x1 = X(n,k) + xi(j)/2;
+    %             x2 = X(n,k) - xi(j)/2;
+    %             % Analytische freie Dichtematrix
+    %             rho_frei = g(x1-vF*t_End)*g(x2-vF*t_End)*rho_anf;
+    %             % Phasenfaktor des linearen Potentials
+    %             phase = exp(-1i*D_F*xi(j)*t_End/hbar);
+    %             % Analytische Lösung mit Potential
+    %             rho_ana = phase*rho_frei;
+    %             % Numerische Lösung
+    %             rho_num = reshape(U(:,n,k,j),2,2);
+    %             % Fehler aufsummieren
+    %             rho_Fehler_summe = rho_Fehler_summe ...
+    %                 + norm(rho_num-rho_ana,'fro')^2;
+    %             rho_Norm_summe = rho_Norm_summe ...
+    %                 + norm(rho_ana,'fro')^2;
+    %         end
+    %     end
+    % end
+    % rho_relFehler = sqrt(rho_Fehler_summe/rho_Norm_summe);
+    % fprintf('Relativer Dichtematrixfehler: %.3e\n',rho_relFehler);
     
     
     %% Überprüfung: Teilchendichte, globale Teilchenzahlerhaltung, Hermitizität
@@ -188,11 +206,33 @@ for q = 1:length(K_werte)
     j = squeeze(vF*(U(2,:,:,j0)+U(3,:,:,j0)));
     j_ana = vF*(g(X-vF*t_End).^2);
     j_relFehler = norm(j(:)-j_ana(:))/norm(j_ana(:));
-    
+
+    % Fehler
     n_Fehler(q) = n_relFehler;
     j_Fehler(q) = j_relFehler;
     N_Fehler(q) = N_relFehler;
     herm_Fehler(q) = hermFehler;
+    
+    % Überprüfung von Klein-Tunneln
+    n_plus = real(1/2*(n_ende+j/vF));
+    n_minus = real(1/2*(n_ende-j/vF));
+    % Relativer Beitrag des linkslaufenden Anteils
+    rel_L_Anteil = sum(abs(n_minus(:)))/sum(abs(n_ende(:)));
+    fprintf('Relativer linkslaufender Anteil: %.3e\n', rel_L_Anteil);
+    % Plot
+    figure;
+    plot(X(:)*1e6, n_plus(:), 'b.-', ...
+        'DisplayName','Rechtslaufend'); hold on;
+
+    plot(X(:)*1e6, n_minus(:), 'r.-', ...
+        'DisplayName','Linkslaufend');
+
+    xlabel('X [\mum]');
+    ylabel('Dichte');
+    title('Rechts- und linkslaufende Anteile');
+    legend('Location','best');
+    grid on;
+
 
     fprintf('K = %d, N_xi = %d, Dichtefehler = %.3e\n', ...
         K, N_xi, n_relFehler);
@@ -244,50 +284,3 @@ legend('Location','best');
 grid on;
 
 
-%% Lokale Funktion: rechte Seite fuer alle DG-Elemente und FV-Zellen
-function dUdt = DG_FV_rechts(U, S, M_k, d_xi, A_X, A_X_plus, A_X_minus, ...
-    A_xi_plus, A_xi_minus, D_F, hbar, xi)
-    K = size(U,3);
-    N_xi = size(U,4);
-    dUdt = zeros(size(U));
-    % Schleife über alle DG-Elemente
-    for k = 1:K
-        k_links = mod(k-2,K)+1; % periodischer linker Nachbar
-        k_rechts = mod(k,K)+1; % periodischer rechter Nachbar
-        % Schleife über FV-Zellen
-        for j = 1:N_xi
-            j_links = mod(j-2,N_xi)+1; % periodischer linker Nachbar
-            j_rechts = mod(j,N_xi)+1; % periodischer rechter Nachbar
-            
-            U_mitte = U(:,:,k,j);  % 4x2-Matrix, die die Dichtematrixwerte 
-                                   % eines DG-Elements zu eier FV-Zelle
-                                   % enthält
-
-            % DG-Randfluesse in X
-            if k==1
-                F_links = A_X_minus*U_mitte(:,1);
-            else
-                F_links = A_X_minus*U_mitte(:,1) + A_X_plus*U(:,2,k-1,j);
-            end
-            if k==K
-                F_rechts = A_X_plus*U_mitte(:,2);
-            else
-                F_rechts = A_X_plus*U_mitte(:,2) + A_X_minus*U(:,1,k+1,j);
-            end
-
-            % Schwache DG-Formulierung
-            F = A_X*U_mitte;
-            linke_Seite = (F*S - F_rechts*[0 1] + F_links*[1 0])/M_k;
-
-            % FV-Flussdifferenz in xi
-            G = (A_xi_plus*(U_mitte-U(:,:,k,j_links)) ...
-               + A_xi_minus*(U(:,:,k,j_rechts)-U_mitte))/d_xi;
-            
-            % Potentialterm
-            S_pot = D_F*xi(j)/(1i*hbar) * U_mitte;
-
-            % Zeitliche Ableitung: dU/dt = DG - G
-            dUdt(:,:,k,j) = linke_Seite-G + S_pot;
-        end
-    end
-end
