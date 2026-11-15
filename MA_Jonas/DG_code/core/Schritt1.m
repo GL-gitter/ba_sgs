@@ -3,7 +3,7 @@ clc, clearvars
 N = 1; % Polynomgrad des DG-Ansatzes, N+1 Knoten
 K_werte = [12, 24, 48]; %, 96]; % Unterteilung der X-Richtung in 12 DG-Elemente
 N_xi_werte = [15, 31, 61]; %, 121]; % Unterteilung der xi-Richtung in 15 FV-
-                                % Zellen, ungerade für Mittelwert bei 0
+                                % Zellen, ungerade für Mittelwert bei 0                               
 n_Fehler = zeros(size(K_werte));
 j_Fehler = zeros(size(K_werte));
 N_Fehler = zeros(size(K_werte));
@@ -37,7 +37,7 @@ for q = 1:length(K_werte)
     M_k = (d_X/2)*M; % Massematrix mit physikalischer Elementbreite (Für 
                     % Steifigkeitsmatrix kürzt sich alles und es kann 
                     % gewöhnlich S verwendet werden.)
-    t_End = 0.6e-12; % Festlegung der Endzeit (0.4ps für 0.4µm), für RK4 später
+    t_End = 1.8e-12; % Festlegung der Endzeit (0.4ps für 0.4µm) für RK4 später
     
     
     % Berechnung der X-Knoten im jeweiligen DG-Element und der xi-Zellenmittelpunkte
@@ -106,26 +106,25 @@ for q = 1:length(K_werte)
     end
     U_anfang = U; % für Vektorgestalt
 
-
-    %% xi-Abhängigkeit von rho zum Zeitpunkt t=0
-    % Für die Abhängigkeit wird ein fixer X-Wert benötigt. Dazu wird ein Punkt
-    % nahe des Mittelpunkts gewählt. 
-    % DG-Knoten nahe dem Zentrum des Gaußpakets auswählen:
-    [~, idx] = min(abs(X(:)-x0)); % Index nahe x0 kriegen, Abstand irrelevant
-    [n0,k0] = ind2sub(size(X),idx); % n0 und k0 zu dem Index speichern
-    % Spur der Dichtematrix bei festem X für alle xi-Werte
-    rho_xi = squeeze(U_anfang(1,n0,k0,:) + U_anfang(4,n0,k0,:) );
-    rho_xi_ana = g(X(n0,k0)+xi/2) .* g(X(n0,k0)-xi/2);
-    % Plot
-    figure;
-    plot(xi*1e6, real(rho_xi), 'bo', 'LineWidth', 1.5, 'DisplayName', 'Numerisch');
-    hold on;
-    plot(xi*1e6, real(rho_xi_ana), 'r-', 'LineWidth', 1.5, 'DisplayName', 'Analytisch');
-    xlabel('\xi [\mum]');
-    ylabel('\rho(X,\xi,0)');
-    title('Anfängliche xi-Abhängigkeit bei X nahe x_0');
-    legend('Location','best');
-    grid on;
+    % %% xi-Abhängigkeit von rho zum Zeitpunkt t=0
+    % % Für die Abhängigkeit wird ein fixer X-Wert benötigt. Dazu wird ein Punkt
+    % % nahe des Mittelpunkts gewählt. 
+    % % DG-Knoten nahe dem Zentrum des Gaußpakets auswählen:
+    % [~, idx] = min(abs(X(:)-x0)); % Index nahe x0 kriegen, Abstand irrelevant
+    % [n0,k0] = ind2sub(size(X),idx); % n0 und k0 zu dem Index speichern
+    % % Spur der Dichtematrix bei festem X für alle xi-Werte
+    % rho_xi = squeeze(U_anfang(1,n0,k0,:) + U_anfang(4,n0,k0,:) );
+    % rho_xi_ana = g(X(n0,k0)+xi/2) .* g(X(n0,k0)-xi/2);
+    % % Plot
+    % figure;
+    % plot(xi*1e6, real(rho_xi), 'bo', 'LineWidth', 1.5, 'DisplayName', 'Numerisch');
+    % hold on;
+    % plot(xi*1e6, real(rho_xi_ana), 'r-', 'LineWidth', 1.5, 'DisplayName', 'Analytisch');
+    % xlabel('\xi [\mum]');
+    % ylabel('\rho(X,\xi,0)');
+    % title('Anfängliche xi-Abhängigkeit bei X nahe x_0');
+    % legend('Location','best');
+    % grid on;
     
     
     %% Zeitentwicklung: explizites Runge-Kutta-Verfahren 4. Ordnung
@@ -183,7 +182,28 @@ for q = 1:length(K_werte)
     % 2) Globale Teilchenzahlerhaltung
     N_anfang = (d_X/2)*sum(n_anfang(:)); % Trapezregel zur Auswertung des Integrals
     N_ende = (d_X/2)*sum(n_ende(:));
-    N_relFehler = abs(N_ende-N_anfang)/N_anfang;
+    
+    % % Relativer Fehler für periodische Randbedingungen
+    % N_relFehler = abs(N_ende-N_anfang)/N_anfang;
+    
+    % Austrittsanteil der Teilchendichte für offene Randbedingungen
+    N_Austrittsanteil = real(1-N_ende/N_anfang);
+    %% Test der offenen Randbedingungen: Teilchenzahl im Gebiet
+    % Numerisch verbleibender Anteil
+    Anteil_num = real(N_ende/N_anfang);
+    % Analytisch verbleibender Anteil
+    x_mitte = x0 + vF*t_End;
+    N_ana_ende = sigma*sqrt(pi)/2 * ...
+        (erf((L_X-x_mitte)/sigma) ...
+        -erf(-x_mitte/sigma));
+    N_ana_anfang = sigma*sqrt(pi)/2 * ...
+        (erf((L_X-x0)/sigma) ...
+        -erf(-x0/sigma));
+    Anteil_ana = N_ana_ende/N_ana_anfang;
+    fprintf('Verbleibender Anteil numerisch: %.6f\n',Anteil_num);
+    fprintf('Verbleibender Anteil analytisch: %.6f\n',Anteil_ana);
+    fprintf('Minimale numerische Dichte: %.3e\n', ...
+        min(real(n_ende(:))));
     % 3) Hermitizitaet: rho(X,xi) = rho(X,-xi)^dagger
     hermFehler = 0;
     for j = 1:N_xi
@@ -210,7 +230,7 @@ for q = 1:length(K_werte)
     % Fehler
     n_Fehler(q) = n_relFehler;
     j_Fehler(q) = j_relFehler;
-    N_Fehler(q) = N_relFehler;
+    % N_Fehler(q) = N_relFehler;
     herm_Fehler(q) = hermFehler;
     
     % Überprüfung von Klein-Tunneln
@@ -243,13 +263,13 @@ h = L_X./K_werte;
 % Beobachtete Konvergenzordnung. Es ist epsilon1=Ch_1^p und
 % epsilon2=ch_2^p, also p=ln(epsilon1/epsilon2)/ln(h_1/h_2)
 % Teilchendichte
-p_n = log(n_Fehler(1:end-1)./n_Fehler(2:end)) ./ log(h(1:end-1)./h(2:end));
-% Strom
-p_j = log(j_Fehler(1:end-1)./j_Fehler(2:end)) ./ log(h(1:end-1)./h(2:end));
+% p_n = log(n_Fehler(1:end-1)./n_Fehler(2:end)) ./ log(h(1:end-1)./h(2:end));
+% % Strom
+% p_j = log(j_Fehler(1:end-1)./j_Fehler(2:end)) ./ log(h(1:end-1)./h(2:end));
 
 
 %% Ausgabe
-fprintf('Relativer Teilchenzahlfehler:  %.3e\n',N_relFehler);
+fprintf('Austrittsanteil bei offenen RB:%.3e\n',N_Austrittsanteil);
 fprintf('Max. Hermitizitätsfehler:      %.3e\n',hermFehler);
 fprintf('Rel. Dichtefehler gg. exakt:   %.3e\n',n_relFehler);
 fprintf('Rel. Stromfehler gg. exakt:    %.3e\n',j_relFehler);
