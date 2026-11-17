@@ -18,7 +18,13 @@ r_N_werte = zeros(size(E_werte));
 r_A_ana_werte = zeros(size(E_werte));
 A_BdG = vF * blkdiag(sigma_x, -sigma_x);
 j_qp = zeros(length(E_werte),length(x));
-rho_E_werte = complex(zeros(4,4,length(E_werte)));
+rho_E_werte = zeros(4,4,length(E_werte));
+
+% Für Veranschaulichung von rho über mehr als eine Energie
+E_ausgewaehlt = [50, 100, 150];
+Nx = length(x);
+N_E = length(E_ausgewaehlt);
+rho_E_alle_Orte = complex(zeros(4,4,Nx,Nx,N_E));
 
 % Schleife über die Energien
 for i = 1:length(E_werte)
@@ -60,8 +66,20 @@ for i = 1:length(E_werte)
 
     % Konstruktion von rho_E für ein konkretes Ortspaar
     i1 = 100;
-    i2 = 200;
+    i2 = 105;
     rho_E_werte(:,:,i) = Psi_E(:,i1) * Psi_E(:,i2)';
+    % rho_E_werte enthält jetzt für i verschiedene Energien die BdG-Komponenten
+    % an x1 und x2 (Elektronen/Loch-Anteil für Untergitter A/B)
+
+    % Konstruktion von rho_E für alle Orte
+    if ismember(i,E_ausgewaehlt)
+        idx = sum(E_ausgewaehlt<=i);
+        for ix1 = 1:Nx
+            for ix2 = 1:Nx
+                rho_E_alle_Orte(:,:,ix1,ix2,idx) = Psi_E(:,ix1) * Psi_E(:,ix2)';
+            end
+        end
+    end
 end
 
 
@@ -102,3 +120,20 @@ xlabel('x (nm)')
 ylabel('j_{qp} / v_F')
 grid on
 fprintf('Maximaler Quasiteilchenfluss: %.3e\n', max(abs(j_qp(:)/vF)));
+
+% Dichtematrix
+iE = 2;
+[X1,X2] = ndgrid(x*1e9,x*1e9);
+figure
+for a = 1:4
+    for b = 1:4
+        rho_plot = squeeze(rho_E_alle_Orte(a,b,:,:,iE));
+
+        subplot(4,4,(a-1)*4+b)
+        mesh(X1,X2,real(rho_plot))
+        title(sprintf('\\rho_{%d%d}',a,b))
+        xlabel('x_1 (nm)')
+        ylabel('x_2 (nm)')
+    end
+end
+title('Realteil der gesamten Dichtematrix')
