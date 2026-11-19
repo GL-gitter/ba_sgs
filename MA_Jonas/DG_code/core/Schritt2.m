@@ -4,7 +4,7 @@ chi_plus  = [1; 1]/sqrt(2); % Eigenvektoren
 chi_minus = [1; -1]/sqrt(2);
 % Parameter
 hbar = 6.582119569e-16; % eV*s
-vF   = 1e6; % m/s
+vF = 1e6; % m/s
 mu = 0.1; % eV
 L = 100e-9; % nm
 x = linspace(0,L,500);
@@ -12,7 +12,7 @@ Delta0 = 0.002; % eV
 Phi_S = 0; % Phase
 U0 = 0; % eV
 U = @(x) U0 + 0.*x; % zunächst konstantes Potential
-E_werte  = linspace(-0.99*Delta0, 0.99*Delta0, 200); % eV
+E_werte = linspace(-0.99*Delta0, 0.99*Delta0, 200); % eV
 r_A_werte = zeros(size(E_werte));
 r_N_werte = zeros(size(E_werte));
 r_A_ana_werte = zeros(size(E_werte));
