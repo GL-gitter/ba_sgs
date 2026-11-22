@@ -4,7 +4,7 @@ hbar = 6.582119569e-16; % eV*s
 mu = 0.1; % eV
 vF = 1e6; % m/s
 Delta0 = 0.002; % eV
-L = 10e-9; % 10 nm für L<<xi_0
+L = 10e-9; % 10 nm für L<<xi_0  
 U0 = 0; % eV
 U = @(x) U0 + 0.*x; % zunächst konstantes Potential
 
