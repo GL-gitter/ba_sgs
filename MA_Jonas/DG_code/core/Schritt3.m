@@ -22,7 +22,7 @@ abs_det_ABS = @(E,phi) abs(det_ABS(E,phi));
 
 E_werte = linspace(-Delta0, Delta0, 1000);
 det_werte = zeros(size(E_werte));
-phi_werte = linspace(0, 2*pi, 701);
+phi_werte = linspace(0, 2*pi, 101);
 
 for j = 1:length(phi_werte)
     phi = phi_werte(j);

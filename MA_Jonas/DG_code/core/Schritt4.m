@@ -34,6 +34,10 @@ for j = 1:length(phi_werte)
         N = sqrt(integral(@(x) sum(abs(psi(x)).^2), 0, L, 'ArrayValued', true));
 
         psi_E_n_x_normed{n,j} = @(x) psi(x)/N;
+        psi = psi_E_n_x_normed{n,j};
+        psi(0)
+        psi(L/2)
+        psi(L)
     end
 end
 fprintf('Maximaler Fehler der Eigenwertbedingung: %.3e\n', Fehler_C);
@@ -87,3 +91,81 @@ fprintf('Abweichung bei rho_he(0,x2): %.3e\n', Fehler_1);
 fprintf('Abweichung bei rho_eh(x1,0): %.3e\n', Fehler_2);
 fprintf('Abweichung bei rho_he(L,x2): %.3e\n', Fehler_3);
 fprintf('Abweichung bei rho_he(x1,L): %.3e\n', Fehler_4);
+
+
+%% Gesamte Dichtematrix visualisieren
+j = 1;
+n = 1;
+Nx = 100;
+x = linspace(0,L,Nx);
+rho_plot = zeros(4,4,Nx,Nx);
+for ix1 = 1:Nx
+    for ix2 = 1:Nx
+        rho_plot(:,:,ix1,ix2) = rho_E{n,j}(x(ix1),x(ix2));
+    end
+end
+% Gesamte Dichtematrix zu einer 2D-Matrix umformen
+rho_gross = reshape(permute(rho_plot,[3 1 4 2]),4*Nx,4*Nx);
+% Plot
+% Realteil
+figure;
+imagesc(real(rho_gross));
+axis image;
+colorbar;
+title('Realteil der gesamten Dichtematrix \rho_E');
+xlabel('x_2 und Komponentenindex');
+ylabel('x_1 und Komponentenindex');
+% Imaginärteil
+figure;
+imagesc(imag(rho_gross));
+axis image;
+colorbar;
+title('Imaginärteil der gesamten Dichtematrix \rho_E');
+xlabel('x_2 und Komponentenindex');
+ylabel('x_1 und Komponentenindex');
+% Betrag
+figure;
+imagesc(abs(rho_gross));
+axis image;
+colorbar;
+title('Betrag der gesamten Dichtematrix');
+xlabel('x_2 und Komponentenindex');
+ylabel('x_1 und Komponentenindex');
+
+
+%% Einen bestimmten Eigenzustand untersuchen
+j = 1;
+n = 1;
+phi = phi_werte(j);
+E_n = E_ABS(j,n);
+psi = psi_E_n_x_normed{n,j};
+fprintf('Phasenindex j = %d\n',j);
+fprintf('ABS-Zweig n = %d\n',n);
+fprintf('Phasendifferenz phi = %.6f\n',phi);
+fprintf('Energie E_n = %.6e eV\n',E_n);
+disp('Wellenfunktion bei x = 0:');
+disp(psi(0));
+disp('Wellenfunktion bei x = L/2:');
+disp(psi(L/2));
+disp('Wellenfunktion bei x = L:');
+disp(psi(L));
+
+x = linspace(0,L,100);
+betrag = zeros(4,length(x));
+for ix = 1:length(x)
+    betrag(:,ix) = abs(psi(x(ix)));
+end
+figure;
+plot(x*1e9,betrag.');
+xlabel('x (nm)');
+ylabel('|\Psi_E(x)|');
+legend('e_A','e_B','h_A','h_B');
+title(sprintf('ABS-Zweig %d, phi = %.3f',n,phi));
+grid on;
+
+rho = rho_E{n,j};
+% Beispiel: Dichtematrix bei x1 = x2 = 0
+rho_00 = rho(0,0);
+disp(rho_00);
+
+Fehler = norm(rho_00 - psi(0)*psi(0)','fro');
