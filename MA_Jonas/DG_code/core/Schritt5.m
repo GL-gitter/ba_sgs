@@ -17,7 +17,10 @@ k_x_h = @(E,k_y) sqrt(((mu-U0-E)/(hbar*vF))^2 - k_y^2);
 T_e = @(E,k_y) expm(L*(k_y*sigma_z+1i*(E+mu-U0)/(hbar*vF) * sigma_x));
 T_h = @(E,k_y) expm(L*(k_y*sigma_z+1i*(mu-U0-E)/(hbar*vF) * sigma_x));
 bed_winkel = @(E) abs(mu-U0-E)/abs(mu-U0+E);
-theta_e = linspace(-pi/2, pi/2, 1000);
+theta_e = linspace(0, pi/2, 1000); % Bereich von -pi/2 für Teilchen, die von
+                                   % unten kommen. Dadurch entsteht ein VZW
+                                   % und bei RAR wird v_y_h auch negativ
+                                   % und bei SAR auch z.T. positiv
 theta_e_gueltig = NaN(length(E_werte),length(theta_e)); % NaN, da 0 auch ein 
                                                         % gültiger Winkel wäre
 for i=1:length(E_werte)
